@@ -20,7 +20,7 @@ mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/roomBooki
 
 
 const bookingRoutes = require("./routes/bookingRoutes");
-const authRoutes = require("./routes/authRoutes");
+const authRoutes = require("./routes/authroutes");
 
 app.use("/", authRoutes);
 app.use("/", bookingRoutes);
