@@ -1,31 +1,36 @@
-
 const express = require("express");
-const mongoose = require("mongoose");
 const cors = require("cors");
-const bodyParser = require("body-parser");
 
+// Create Express app
 const app = express();
 
-
+// Middleware
 app.use(cors());
 app.use(express.json());
-app.use(bodyParser.json());
 
-mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/roomBooking", {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-  .then(() => console.log("MongoDB connected"))
-  .catch(err => console.error("MongoDB connection error", err));
+// Simple test route
+app.get("/api/test", (req, res) => {
+  res.json({ 
+    message: "Server is working",
+    timestamp: new Date().toISOString()
+  });
+});
 
+// Routes
+const authRoutes = require("./routes/authRoutes");
+app.use("/api", authRoutes);
 
-const bookingRoutes = require("./routes/bookingRoutes");
-const authRoutes = require("./routes/authroutes");
+// Error handling
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(500).json({
+    success: false,
+    message: err.message || "Internal server error"
+  });
+});
 
-app.use("/", authRoutes);
-app.use("/", bookingRoutes);
-
-
-app.listen(5000, () => {
-  console.log("Server running at http://localhost:5000");
+// Start server
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
 });

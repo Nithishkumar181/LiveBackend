@@ -1,20 +1,29 @@
 {
-  "name": "server",
+  "name": "hotel-booking-backend",
   "version": "1.0.0",
+  "description": "Hotel room booking system backend",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "setup": "node scripts/setup.js",
+    "checkdb": "node scripts/check-mongodb.js",
+    "test": "node scripts/test-system.js",
+    "debug": "nodemon --inspect index.js",
+    "prestart": "node scripts/check-mongodb.js",
+    "predev": "node scripts/check-mongodb.js"
   },
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
-    "bcryptjs": "^3.0.2",
-    "body-parser": "^2.2.0",
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
-    "express": "^5.1.0",
-    "mongoose": "^8.15.0",
-    "nodemon": "^3.1.10"
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.0",
+    "mongodb": "^5.0.0",
+    "mongoose": "^7.0.3"
+  },
+  "devDependencies": {
+    "axios": "^1.6.0",
+    "nodemon": "^2.0.22"
   }
 }
