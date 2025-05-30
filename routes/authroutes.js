@@ -130,7 +130,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     }
 
     // Find user
-    const user = await User.findOne({ email, role: 'user' });
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -196,12 +196,12 @@ router.post("/admin-login", loginLimiter, async (req, res) => {
             });
         }
 
-        // Find user
-        const user = await User.findOne({ email });
+        // Find admin user
+        const user = await User.findOne({ email, role: 'admin' });
         if (!user) {
             return res.status(401).json({
                 success: false,
-                message: "Invalid credentials"
+                message: "Invalid credentials or insufficient privileges"
             });
         }
 
