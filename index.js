@@ -13,7 +13,19 @@ const corsOptions = {
   credentials: true
 };
 app.use(cors(corsOptions));
-app.use(express.json());
+app.use(express.json({
+  verify: (req, res, buf, encoding) => {
+    try {
+      JSON.parse(buf);
+    } catch (e) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid JSON payload'
+      });
+      throw Error('Invalid JSON');
+    }
+  }
+}));
 
 // Simple test route
 app.get("/api/test", (req, res) => {
@@ -33,7 +45,14 @@ app.use("/api", bookingRoutes);
 
 // Error handling
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
+  console.error('Error:', {
+    name: err.name,
+    message: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method,
+    body: req.body
+  });
   
   if (err.name === 'ValidationError') {
     return res.status(400).json({
@@ -50,9 +69,24 @@ app.use((err, req, res, next) => {
     });
   }
 
-  res.status(err.status || 500).json({
+  if (err.type === 'entity.parse.failed') {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid JSON payload'
+    });
+  }
+
+  const statusCode = err.status || 500;
+  res.status(statusCode).json({
     success: false,
-    message: err.message || "Internal server error"
+    message: statusCode === 500 ? 'Internal server error' : err.message,
+    ...(process.env.NODE_ENV === 'development' && {
+      error: {
+        name: err.name,
+        message: err.message,
+        stack: err.stack
+      }
+    })
   });
 });
 
