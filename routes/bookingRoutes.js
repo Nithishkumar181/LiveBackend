@@ -36,22 +36,23 @@ const validateBookingDates = (req, res, next) => {
 
 // Add Booking
 router.post("/add-booking", [authenticateToken, ensureDbConnection, validateBookingDates], async (req, res) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
-        const bookingData = req.body;
+        const bookingData = {
+            ...req.body,
+            check_in_date: new Date(req.body.check_in_date),
+            check_out_date: new Date(req.body.check_out_date)
+        };
 
-        // Check room availability with transaction
+        console.log('Processing booking request:', JSON.stringify(bookingData, null, 2));
+
+        // Check room availability
         const isAvailable = await Booking.isRoomAvailable(
             bookingData.room_id,
-            new Date(bookingData.check_in_date),
-            new Date(bookingData.check_out_date),
-            session
+            bookingData.check_in_date,
+            bookingData.check_out_date
         );
 
         if (!isAvailable) {
-            await session.abortTransaction();
             return res.status(400).json({
                 success: false,
                 message: "Room is not available for the selected dates"
@@ -59,8 +60,20 @@ router.post("/add-booking", [authenticateToken, ensureDbConnection, validateBook
         }
 
         const booking = new Booking(bookingData);
-        await booking.save({ session });
-        await session.commitTransaction();
+        
+        // Validate the booking
+        try {
+            await booking.validate();
+        } catch (validationError) {
+            console.error('Validation error:', validationError);
+            return res.status(400).json({
+                success: false,
+                message: "Validation error",
+                errors: Object.values(validationError.errors).map(err => err.message)
+            });
+        }
+
+        await booking.save();
 
         res.status(201).json({
             success: true,
@@ -68,7 +81,12 @@ router.post("/add-booking", [authenticateToken, ensureDbConnection, validateBook
             booking: booking.toJSON()
         });
     } catch (error) {
-        await session.abortTransaction();
+        console.error("Add booking error:", {
+            message: error.message,
+            stack: error.stack,
+            name: error.name,
+            code: error.code
+        });
 
         if (error.name === 'ValidationError') {
             return res.status(400).json({
@@ -78,13 +96,11 @@ router.post("/add-booking", [authenticateToken, ensureDbConnection, validateBook
             });
         }
         
-        console.error("Add booking error:", error);
         res.status(500).json({
             success: false,
-            message: "Server error while adding booking"
+            message: "Server error while adding booking",
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
-    } finally {
-        session.endSession();
     }
 });
 
@@ -147,14 +163,10 @@ router.get("/booking/:room_id", [authenticateToken, ensureDbConnection], async (
 
 // Update Booking
 router.put("/update-booking/:room_id", [authenticateToken, ensureDbConnection, validateBookingDates], async (req, res) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
-        const booking = await Booking.findOne({ room_id: req.params.room_id }).session(session);
+        const booking = await Booking.findOne({ room_id: req.params.room_id });
 
         if (!booking) {
-            await session.abortTransaction();
             return res.status(404).json({
                 success: false,
                 message: "Booking not found"
@@ -170,12 +182,10 @@ router.put("/update-booking/:room_id", [authenticateToken, ensureDbConnection, v
                 req.params.room_id,
                 checkIn,
                 checkOut,
-                session,
                 booking._id // Exclude current booking from availability check
             );
 
             if (!isAvailable) {
-                await session.abortTransaction();
                 return res.status(400).json({
                     success: false,
                     message: "Room is not available for the selected dates"
@@ -186,14 +196,8 @@ router.put("/update-booking/:room_id", [authenticateToken, ensureDbConnection, v
         const updatedBooking = await Booking.findOneAndUpdate(
             { room_id: req.params.room_id },
             { $set: req.body },
-            { 
-                new: true, 
-                runValidators: true,
-                session 
-            }
+            { new: true, runValidators: true }
         );
-
-        await session.commitTransaction();
 
         res.json({
             success: true,
@@ -201,8 +205,6 @@ router.put("/update-booking/:room_id", [authenticateToken, ensureDbConnection, v
             booking: updatedBooking.toJSON()
         });
     } catch (error) {
-        await session.abortTransaction();
-
         if (error.name === 'ValidationError') {
             return res.status(400).json({
                 success: false,
@@ -216,30 +218,20 @@ router.put("/update-booking/:room_id", [authenticateToken, ensureDbConnection, v
             success: false,
             message: "Server error while updating booking"
         });
-    } finally {
-        session.endSession();
     }
 });
 
 // Delete Booking
 router.delete("/delete-booking/:room_id", [authenticateToken, ensureDbConnection], async (req, res) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
-        const booking = await Booking.findOneAndDelete(
-            { room_id: req.params.room_id }
-        ).session(session);
+        const booking = await Booking.findOneAndDelete({ room_id: req.params.room_id });
 
         if (!booking) {
-            await session.abortTransaction();
             return res.status(404).json({
                 success: false,
                 message: "Booking not found"
             });
         }
-
-        await session.commitTransaction();
 
         res.json({
             success: true,
@@ -247,14 +239,11 @@ router.delete("/delete-booking/:room_id", [authenticateToken, ensureDbConnection
             booking: booking.toJSON()
         });
     } catch (error) {
-        await session.abortTransaction();
         console.error("Delete booking error:", error);
         res.status(500).json({
             success: false,
             message: "Server error while deleting booking"
         });
-    } finally {
-        session.endSession();
     }
 });
 
