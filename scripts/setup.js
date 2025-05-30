@@ -2,64 +2,59 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const { connectWithRetry } = require('../utils/db');
 
-async function setupDatabase() {
-    console.log('\n=== Database Setup ===\n');
-
+async function setupAdmin() {
     try {
-        console.log('1. Connecting to MongoDB...');
-        await mongoose.connect(process.env.MONGODB_URI, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-            serverSelectionTimeoutMS: 5000,
-        });
-        console.log('✓ MongoDB Connected');
+        console.log('\nInitial Setup');
+        console.log('=============');
 
-        // Create test user
-        console.log('\n2. Setting up test user...');
-        const testUser = {
-            email: 'test@example.com',
-            password: await bcrypt.hash('password123', 10)
-        };
+        // Connect to database
+        console.log('1. Connecting to database...');
+        await connectWithRetry();
+        console.log('✓ Database connected');
 
-        // Remove existing test user if exists
-        await User.deleteOne({ email: testUser.email });
+        // Create admin user
+        console.log('\n2. Setting up admin user...');
+        const adminEmail = 'admin@example.com';
+        const adminPassword = 'admin123!@#';
 
-        // Create new test user
-        const user = new User(testUser);
-        await user.save();
-        console.log('✓ Test user created successfully');
-        console.log('  Email:', testUser.email);
-        console.log('  Password: password123');
-
-        console.log('\n✅ Setup completed successfully!');
-        console.log('\nYou can now:');
-        console.log('1. Start the server: npm run dev');
-        console.log('2. Login with the test credentials above');
-        console.log('3. Run database checks: npm run checkdb');
-
-        process.exit(0);
-    } catch (error) {
-        console.error('\n❌ Setup failed:', error.message);
+        // Check if admin exists
+        let admin = await User.findOne({ email: adminEmail });
         
-        if (error.name === 'MongooseError' || error.name === 'MongoError') {
-            console.log('\nTroubleshooting steps:');
-            console.log('1. Ensure MongoDB is installed and running:');
-            console.log('   - Windows: Check Services app for "MongoDB"');
-            console.log('   - Linux/Mac: Run "sudo systemctl status mongodb"');
-            console.log('2. Verify MongoDB connection string in .env file');
-            console.log('3. Check if MongoDB port (default: 27017) is accessible');
-            console.log('4. Try running: npm run checkdb');
+        if (admin) {
+            console.log('ℹ Admin user already exists');
+        } else {
+            // Hash password
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(adminPassword, salt);
+
+            // Create admin
+            admin = new User({
+                email: adminEmail,
+                password: hashedPassword,
+                role: 'admin'
+            });
+
+            await admin.save();
+            console.log('✓ Admin user created');
         }
+
+        console.log('\nAdmin Credentials:');
+        console.log('Email:', adminEmail);
+        console.log('Password:', adminPassword);
         
-        process.exit(1);
+        console.log('\n✅ Setup completed successfully!');
+    } catch (error) {
+        console.error('\n❌ Setup failed:', error);
     } finally {
-        await mongoose.connection.close();
+        // Close database connection
+        if (mongoose.connection.readyState === 1) {
+            await mongoose.connection.close();
+        }
+        process.exit(0);
     }
 }
 
-console.log('Starting database setup...');
-setupDatabase().catch(error => {
-    console.error('Fatal error during setup:', error);
-    process.exit(1);
-});
+// Run setup
+setupAdmin().catch(console.error);
